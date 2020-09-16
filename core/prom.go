@@ -5,10 +5,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func updateGuage(corporation *AgentableCorporation,
-	TOAvailable *prometheus.GaugeVec,
-	TOUsed *prometheus.GaugeVec,
-	TOTotal *prometheus.GaugeVec) {
+type GaugeSet struct {
+	TOAvailable *prometheus.GaugeVec
+	TOUsed      *prometheus.GaugeVec
+	TOTotal     *prometheus.GaugeVec
+}
+
+func updateGuage(corporation *AgentableCorporation, gauges *GaugeSet) {
 	updateElement := func(guage *prometheus.GaugeVec, value int) {
 		guage.With(prometheus.Labels{
 			"name":         corporation.Name,
@@ -16,18 +19,15 @@ func updateGuage(corporation *AgentableCorporation,
 			"buisnessType": corporation.BusinessType,
 		}).Set(float64(value))
 	}
-	updateElement(TOAvailable, corporation.HyunyukBaejung)
-	updateElement(TOUsed, corporation.HyunyukPyunip)
-	updateElement(TOTotal, corporation.HyunukBokmu)
+	updateElement(gauges.TOAvailable, corporation.HyunyukBaejung)
+	updateElement(gauges.TOUsed, corporation.HyunyukPyunip)
+	updateElement(gauges.TOTotal, corporation.HyunukBokmu)
 }
 
-func CrawlAndUpdateGuage(
-	TOAvailable *prometheus.GaugeVec,
-	TOUsed *prometheus.GaugeVec,
-	TOTotal *prometheus.GaugeVec) {
+func CrawlAndUpdateGuage(gauges *GaugeSet) {
 	crawlResult := crawlAllCorporations()
 	fmt.Println(crawlResult)
 	for _, corp := range crawlResult {
-		updateGuage(&corp, TOAvailable, TOUsed, TOTotal)
+		updateGuage(&corp, gauges)
 	}
 }

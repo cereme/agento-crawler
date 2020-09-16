@@ -29,7 +29,13 @@ func init() {
 
 func main() {
 	ctab := crontab.New()
-	_ = ctab.AddJob("* * * * *", func() { core.CrawlAndUpdateGuage(TOAvailable, TOUsed, TOTotal) })
+
+	gauges := new(core.GaugeSet)
+	gauges.TOAvailable = TOTotal
+	gauges.TOUsed = TOUsed
+	gauges.TOTotal = TOTotal
+
+	_ = ctab.AddJob("* * * * *", func() { core.CrawlAndUpdateGuage(gauges) })
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
