@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -26,7 +25,6 @@ func updateGuage(corporation *AgentableCorporation, gauges *GaugeSet) {
 
 func CrawlAndUpdateGuage(gauges *GaugeSet) {
 	crawlResult := crawlAllCorporations()
-	fmt.Println(crawlResult)
 	for _, corp := range crawlResult {
 		updateGuage(&corp, gauges)
 	}
