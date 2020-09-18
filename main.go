@@ -31,7 +31,7 @@ func main() {
 	ctab := crontab.New()
 
 	gauges := new(core.GaugeSet)
-	gauges.TOAvailable = TOTotal
+	gauges.TOAvailable = TOAvailable
 	gauges.TOUsed = TOUsed
 	gauges.TOTotal = TOTotal
 
