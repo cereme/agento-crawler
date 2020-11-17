@@ -19,12 +19,22 @@ var (
 	TOTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "TOTotal",
 	}, []string{"name", "corpSize", "buisnessType"})
+
+	LastCrawledAt = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "LastCrawledAt",
+	})
+	LastCrawlTimeSpent = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "LastCrawlTimeSpent",
+	})
 )
 
 func init() {
 	prometheus.MustRegister(TOAvailable)
 	prometheus.MustRegister(TOUsed)
 	prometheus.MustRegister(TOTotal)
+
+	prometheus.MustRegister(LastCrawledAt)
+	prometheus.MustRegister(LastCrawlTimeSpent)
 }
 
 func main() {
@@ -34,6 +44,8 @@ func main() {
 	gauges.TOAvailable = TOAvailable
 	gauges.TOUsed = TOUsed
 	gauges.TOTotal = TOTotal
+	gauges.LastCrawlTimeSpent = &LastCrawlTimeSpent
+	gauges.LastCrawledAt = &LastCrawledAt
 
 	core.CrawlAndUpdateGuage(gauges)
 
