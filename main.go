@@ -35,6 +35,8 @@ func main() {
 	gauges.TOUsed = TOUsed
 	gauges.TOTotal = TOTotal
 
+	core.CrawlAndUpdateGuage(gauges)
+
 	_ = ctab.AddJob("0 0 * * *", func() { core.CrawlAndUpdateGuage(gauges) })
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(":8080", nil))
