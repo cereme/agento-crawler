@@ -73,7 +73,8 @@ func getLengthInfo() (pageLength int, corporationLength int) {
 
 	resultNode, _ := htmlquery.QueryAll(htmlDoc, "//*[@id=\"content\"]/div[1]/div")
 	resultString := resultNode[0].FirstChild.Data
-	resultString = regexp.MustCompile("총 게시물 : (\\d+?)건").FindStringSubmatch(resultString)[1]
+	resultString = regexp.MustCompile("총 게시물 : ([0-9,]+?)건").FindStringSubmatch(resultString)[1]
+	resultString = strings.Replace(resultString, ",", "", -1)
 	resultInt, _ := strconv.Atoi(resultString)
 	return int(math.Ceil(float64(resultInt) / float64(PageUnit))), resultInt
 }
