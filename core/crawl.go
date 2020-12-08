@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"github.com/antchfx/htmlquery"
-	"go.uber.org/ratelimit"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -17,17 +16,17 @@ import (
 const PageUnit = 100
 const CrawlRatePerSecond = 10
 
-func _requestSearchPage(pageIndex int) string {
+func requestSearchPage(pageIndex int) string {
 	apiEndpoint := "https://work.mma.go.kr/caisBYIS/search/byjjecgeomsaek.do"
 	payload := url.Values{}
 	payload.Set("al_eopjong_gbcd", "11111,11112")
 	payload.Set("eopjong_gbcd_list", "11111,11112")
 	payload.Set("eopjong_gbcd", "1")
 	payload.Set("eopjong_cd", "11111")
-	payload.Set("eopjong_cd", "11111")
+	payload.Set("eopjong_cd", "11112")
 	payload.Set("gegyumo_cd", "")
 	payload.Set("eopche_nm", "")
-	payload.Set("juso", "")
+	payload.Set("sigungu_addr", "")
 	payload.Set("sido_addr", "")
 	payload.Set("sigungu_addr", "")
 	payload.Set("chaeyongym", "")
@@ -42,6 +41,8 @@ func _requestSearchPage(pageIndex int) string {
 	req, _ := http.NewRequest(http.MethodPost, apiEndpoint, strings.NewReader(payload.Encode()))
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Content-Length", strconv.Itoa(len(payload.Encode())))
+	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36")
+
 
 	resp, _ := client.Do(req)
 
@@ -52,24 +53,27 @@ func _requestSearchPage(pageIndex int) string {
 	return string(body)
 }
 
-func _requestDetailPage(id int) string {
+func requestDetailPage(id int) (string, error) {
 	pageUrl := fmt.Sprintf("https://work.mma.go.kr/caisBYIS/search/byjjecgeomsaekView.do?byjjeopche_cd=%d", id)
 
 	client := &http.Client{}
-	req, _ := http.NewRequest(http.MethodGet, pageUrl, nil)
+	req, err := http.NewRequest(http.MethodGet, pageUrl, nil)
 
 	resp, _ := client.Do(req)
+
+	if err != nil {
+		return "", err
+	}
 
 	defer resp.Body.Close()
 
 	body, _ := ioutil.ReadAll(resp.Body)
 
-	return string(body)
+	return string(body), nil
 }
 
-func getLengthInfo() (pageLength int, corporationLength int) {
-	htmlBody := _requestSearchPage(1)
-	htmlDoc, _ := htmlquery.Parse(strings.NewReader(htmlBody))
+func GetLengthInfo() (pageLength int, corporationLength int) {
+	htmlDoc, _ := htmlquery.Parse(strings.NewReader(requestSearchPage(1)))
 
 	resultNode, _ := htmlquery.QueryAll(htmlDoc, "//*[@id=\"content\"]/div[1]/div")
 	resultString := resultNode[0].FirstChild.Data
@@ -79,40 +83,45 @@ func getLengthInfo() (pageLength int, corporationLength int) {
 	return int(math.Ceil(float64(resultInt) / float64(PageUnit))), resultInt
 }
 
-func getSingleCorporationList(pageIndex int) []AgentableCorporation {
-	htmlBody := _requestSearchPage(pageIndex)
-	corporationList := make([]AgentableCorporation, 0, 0)
-	htmlDoc, _ := htmlquery.Parse(strings.NewReader(htmlBody))
+func GetSingleCorporationList(pageIndex int) []int {
+	page := requestSearchPage(pageIndex)
 
+	page = strings.ReplaceAll(page, "\r", "")
+	page = strings.ReplaceAll(page, "\n", "")
+	htmlDoc, _ := htmlquery.Parse(strings.NewReader(page))
 	corporations, _ := htmlquery.QueryAll(htmlDoc, "//*[@id=\"content\"]/table/tbody/tr/th")
+
+	corporationIdList := make([]int, 0, len(corporations))
+
 	for _, node := range corporations {
-		corporationName := node.FirstChild.FirstChild.Data
 		_corporationHref := node.FirstChild.Attr[0].Val
 		corporationId, _ := strconv.Atoi(regexp.MustCompile("&byjjeopche_cd=(\\d+?)&").FindStringSubmatch(_corporationHref)[1])
-		corporationList = append(corporationList, AgentableCorporation{
-			Name: corporationName,
-			Id:   corporationId,
-		})
+		corporationIdList = append(corporationIdList, corporationId)
 	}
-	return corporationList
+	return corporationIdList
 }
 
-func completeElementWithDetailPage(element *AgentableCorporation, w *sync.WaitGroup) {
-	defer w.Done()
-	htmlBody := _requestDetailPage(element.Id)
-	htmlDoc, _ := htmlquery.Parse(strings.NewReader(htmlBody))
+func CompleteElementWithDetailPage(corporationId int) *AgentableCorporation {
+	page, err := requestDetailPage(corporationId)
+
+	if err != nil {
+		return nil
+	}
+
+	htmlDoc, _ := htmlquery.Parse(strings.NewReader(page))
 	regexPeopleCount := regexp.MustCompile("(\\d+?)명")
 
-	_parseSimpleNode := func(trIdx int, tdIdx int) string {
+	parseSimpleNode := func(tableIdx, trIdx ,tdIdx int) string {
 		defer func() {
 			if v := recover(); v != nil {
 				return
 			}
 		}()
-		nodePath := fmt.Sprintf("//*[@id=\"content\"]/div[2]/table/tbody/tr[%d]/td[%d]", trIdx, tdIdx)
+		nodePath := fmt.Sprintf("//*[@id=\"content\"]/div[%d]/table/tbody/tr[%d]/td[%d]", tableIdx, trIdx, tdIdx)
 		return htmlquery.Find(htmlDoc, nodePath)[0].FirstChild.Data
 	}
-	_refinePeopleCountString := func(str string) int {
+
+	refinePeopleCountString := func(str string) int {
 		defer func() {
 			if v := recover(); v != nil {
 				return
@@ -123,33 +132,79 @@ func completeElementWithDetailPage(element *AgentableCorporation, w *sync.WaitGr
 		return result
 	}
 
-	element.BusinessType = _parseSimpleNode(1, 1)
-	element.CorporationSize = _parseSimpleNode(2, 1)
-	element.HyunyukBaejung = _refinePeopleCountString(_parseSimpleNode(3, 1))
-	element.HyunyukPyunip = _refinePeopleCountString(_parseSimpleNode(4, 1))
-	element.HyunukBokmu = _refinePeopleCountString(_parseSimpleNode(5, 1))
-	element.BochungyukBaejung = _refinePeopleCountString(_parseSimpleNode(3, 2))
-	element.BochungyukPyunip = _refinePeopleCountString(_parseSimpleNode(4, 2))
-	element.BochungyukBokmu = _refinePeopleCountString(_parseSimpleNode(5, 2))
+	element := AgentableCorporation{}
+
+	element.Id = corporationId
+	element.Name = parseSimpleNode(1, 1, 1)
+	element.BusinessType = parseSimpleNode(2,1, 1)
+	element.CorporationSize = parseSimpleNode(2,2, 1)
+	element.HyunyukBaejung = refinePeopleCountString(parseSimpleNode(2,3, 1))
+	element.HyunyukPyunip = refinePeopleCountString(parseSimpleNode(2,4, 1))
+	element.HyunukBokmu = refinePeopleCountString(parseSimpleNode(2,5, 1))
+	element.BochungyukBaejung = refinePeopleCountString(parseSimpleNode(2,3, 2))
+	element.BochungyukPyunip = refinePeopleCountString(parseSimpleNode(2,4, 2))
+	element.BochungyukBokmu = refinePeopleCountString(parseSimpleNode(2,5, 2))
+
+	return &element
 }
 
-func crawlAllCorporations() []AgentableCorporation {
-	pageLength, corporationLength := getLengthInfo()
-	corporationList := make([]AgentableCorporation, 0)
+func CrawlAllCorporationList(totalCorporationLength, pageLength int) [] int {
+	corporationList := make([]int, 0, totalCorporationLength)
+	corporationTempList := make(chan []int, pageLength)
+	var wg sync.WaitGroup
+
+	wg.Add(pageLength)
 
 	for i := 1; i <= pageLength; i++ {
-		corporationList = append(corporationList, getSingleCorporationList(i)...)
+		go func(page int, corpListChannel chan []int) {
+			corpListChannel <- GetSingleCorporationList(page)
+			wg.Done()
+		}(i, corporationTempList)
 	}
 
-	wait := new(sync.WaitGroup)
-	rl := ratelimit.New(CrawlRatePerSecond)
-	wait.Add(corporationLength)
-	for i := 0; i < len(corporationList); i++ {
-		rl.Take()
-		go completeElementWithDetailPage(&corporationList[i], wait)
+	go func() {
+		wg.Wait()
+		close(corporationTempList)
+	}()
+
+	for corp := range corporationTempList{
+		corporationList = append(corporationList, corp...)
 	}
 
-	wait.Wait()
+	return corporationList
+}
+
+func CrawlAllCorporations() []AgentableCorporation {
+	pageLength, corporationLength := GetLengthInfo()
+	corporationIdList := CrawlAllCorporationList(corporationLength, pageLength)
+
+	corporationTempList := make(chan AgentableCorporation, 30)
+	corporationList := make([]AgentableCorporation, 0, corporationLength)
+
+	var wg sync.WaitGroup
+
+	wg.Add(len(corporationIdList))
+
+	// get detail
+	for _, corporationId := range corporationIdList {
+		go func() {
+			if corporation := CompleteElementWithDetailPage(corporationId); corporation != nil {
+				corporationTempList <- *corporation
+			}
+			wg.Done()
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(corporationTempList)
+	}()
+
+	// detail channel to list
+	for corporation := range corporationTempList {
+		corporationList = append(corporationList, corporation)
+	}
+
 
 	return corporationList
 }
