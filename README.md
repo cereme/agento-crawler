@@ -4,8 +4,8 @@
 ## Gallery
 (이하 데이터는 2021-03-22 기준 데이터입니다)
 ![image](https://user-images.githubusercontent.com/19284878/111912878-e4a6a080-8aae-11eb-84b1-f99d34e20ab2.png)
-![image](https://user-images.githubusercontent.com/19284878/111912947-33ecd100-8aaf-11eb-99e6-e0a4ca1b44be.png)
-![image](https://user-images.githubusercontent.com/19284878/111912965-4a932800-8aaf-11eb-880c-9bc3d2820b64.png)
+![image](https://user-images.githubusercontent.com/19284878/111913027-9ba31c00-8aaf-11eb-8931-369a48aaf7ca.png)
+![image](https://user-images.githubusercontent.com/19284878/111912998-7e6e4d80-8aaf-11eb-9ace-67c3da70a5f8.png)
 
 
 ## Roadmap
