@@ -29,7 +29,7 @@ func updateGuage(corporation *AgentableCorporation, gauges *GaugeSet) {
 func CrawlAndUpdateGuage(gauges *GaugeSet) {
 	now := time.Now()
 	start := now.Unix()
-	crawlResult := crawlAllCorporations()
+	crawlResult := CrawlAllCorporations()
 	end := now.Unix()
 
 	(*gauges.LastCrawledAt).Set(float64(end))
